@@ -2,7 +2,7 @@ import gymnasium as gym
 import numpy as np
 import tensorflow as tf
 from replay_memory import ReplayMemory
-from dqn_model import DQN
+from nn_model import DQN
 
 # Hyperparameters
 env = gym.make("Taxi-v3", render_mode=None)
@@ -10,13 +10,13 @@ state_size = env.observation_space.n
 action_size = env.action_space.n
 
 learning_rate = 0.001
-gamma = 0.99
+gamma = 0.99  # discount factor
 epsilon = 1.0
 epsilon_decay = 0.995
 epsilon_min = 0.01
 batch_size = 32
 memory_capacity = 10000
-num_episodes = 1000
+num_episodes = 4000
 
 # Initialize DQN and memory
 model = DQN(action_size)
@@ -29,6 +29,8 @@ model(dummy_state)
 optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
 loss_function = tf.keras.losses.MeanSquaredError()
 
+# before computing the q values, we need to one hot the states (transformed into a binary vector with all 0s, except for
+# one 1 which corresponds to the current state)
 def choose_action(state, epsilon):
     if np.random.rand() <= epsilon:
         return env.action_space.sample()
@@ -54,8 +56,14 @@ def train_step():
     next_states_one_hot = tf.one_hot(next_states, state_size)
 
     # Compute target Q-values using the same model
+
+    # output of the dqn, list of target q values for each action given the input state
     target_qs = model(next_states_one_hot)
+
+    # maximum target q value
     max_next_qs = np.amax(target_qs, axis=1)
+
+    # Bellman equation
     target_values = rewards + gamma * max_next_qs * (1 - dones)
 
     with tf.GradientTape() as tape:
@@ -88,13 +96,13 @@ for episode in range(num_episodes):
             print(f"Episode {episode + 1}/{num_episodes}, Total Reward: {total_reward}, Epsilon: {epsilon:.4f}")
             break
 
-
-for episode in range(5):
+num_episodes = 100
+nb_success = 0
+for episode in range(num_episodes):
     state = env.reset()[0]
     total_reward = 0
     done = False
     steps = 0
-
     while not done:
         env.render()
         state_one_hot = tf.one_hot(state, state_size)
@@ -103,8 +111,12 @@ for episode in range(5):
         state, reward, terminated, truncated, _ = env.step(action)
         done = terminated or truncated
         total_reward += reward
+        if reward == 20:
+            nb_success += 1
         steps += 1
 
     print(f"Episode {episode + 1}: Completed in {steps} steps with total reward: {total_reward}")
+
+print(f"Success rate = {nb_success/num_episodes*100}%")
 
 env.close()

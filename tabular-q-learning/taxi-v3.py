@@ -1,7 +1,7 @@
 import gymnasium as gym
 import numpy as np
-import pygame
-
+import matplotlib.pyplot as plt
+import pandas as pd
 
 environment = gym.make("Taxi-v3", render_mode="ansi")
 environment.reset()
@@ -9,13 +9,14 @@ environment.render()
 qtable = np.zeros((environment.observation_space.n, environment.action_space.n))
 
 episodes = 10000        # Total number of episodes
-alpha = 0.5            # Learning rate
+alpha = 0.9            # Learning rate
 gamma = 0.9            # Discount factor
 epsilon = 1
 epsilon_decay = 0.001
 
 # Training
-
+total_reward = 0
+rewards = []
 for _ in range(episodes):
     state = environment.reset()[0]
     done = False
@@ -26,23 +27,18 @@ for _ in range(episodes):
     while not done:
 
         rnd = np.random.random()
-        # Choose the action with the highest value in the current state
 
+        # prefer exploration first, exploitation later
+        # chooses random action with probability epsilon
         if rnd < epsilon:
             action = environment.action_space.sample()
+        # chooses best action with probability 1-epsilon
         else:
             action = np.argmax(qtable[state])
 
-        # if np.max(qtable[state]) > 0:
-        #     action = np.argmax(qtable[state])
-        #
-        # If there's no best action (only zeros), take a random one
-        # else:
-        #     action = environment.action_space.sample()
-
         # Implement this action and move the agent in the desired direction
         new_state, reward, terminated, truncated, _ = environment.step(action)
-
+        total_reward += reward
         done = terminated or truncated
         # Update Q(s,a)
         qtable[state, action] = qtable[state, action] + \
@@ -52,30 +48,35 @@ for _ in range(episodes):
 
         # Update our current state
         state = new_state
+    rewards.append(total_reward)
+    total_reward = 0
 
+# smoothening rewards
+smooth_rewards = pd.DataFrame(rewards).rolling(50).mean()
 
+# Plotting the rewards over episodes
+plt.plot(smooth_rewards)
+plt.xlabel('Episodes')
+plt.ylabel('Reward')
+plt.title('DQN Training Performance Over Episodes')
+plt.savefig('learning_plot.png')
+plt.show()
 episodes = 100
 nb_success = 0
 
-# Evaluation
-for _ in range(100):
+
+for _ in range(episodes):
     state = environment.reset()[0]
     done = False
 
     # Until the agent gets stuck or reaches the goal, keep training it
     while not done:
         # Choose the action with the highest value in the current state
-        # if np.max(qtable[state]) > 0:
-        #     action = np.argmax(qtable[state])
-        #
-        # # If there's no best action (only zeros), take a random one
-        # else:
-        #     action = environment.action_space.sample()
-
+        # argmax returns the key of the highest value in the array (action)
         action = np.argmax(qtable[state])
 
         # Implement this action and move the agent in the desired direction
-        new_state, reward, terminated, truncated, info = environment.step(action)
+        new_state, reward, terminated, truncated, _ = environment.step(action)
         done = terminated or truncated
         # Update our current state
         state = new_state
