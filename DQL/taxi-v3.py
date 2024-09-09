@@ -1,22 +1,24 @@
 import gymnasium as gym
 import numpy as np
 import tensorflow as tf
+import matplotlib.pyplot as plt
 from replay_memory import ReplayMemory
 from nn_model import DQN
+import pandas as pd
 
 # Hyperparameters
 env = gym.make("Taxi-v3", render_mode=None)
 state_size = env.observation_space.n
 action_size = env.action_space.n
 
-learning_rate = 0.001
-gamma = 0.99  # discount factor
+learning_rate = 0.0005
+gamma = 0.99
 epsilon = 1.0
-epsilon_decay = 0.995
+epsilon_decay = 0.998
 epsilon_min = 0.01
-batch_size = 32
+batch_size = 64
 memory_capacity = 10000
-num_episodes = 4000
+num_episodes = 10000
 
 # Initialize DQN and memory
 model = DQN(action_size)
@@ -29,8 +31,9 @@ model(dummy_state)
 optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
 loss_function = tf.keras.losses.MeanSquaredError()
 
-# before computing the q values, we need to one hot the states (transformed into a binary vector with all 0s, except for
-# one 1 which corresponds to the current state)
+# List to store rewards for plotting
+rewards_history = []
+
 def choose_action(state, epsilon):
     if np.random.rand() <= epsilon:
         return env.action_space.sample()
@@ -43,28 +46,22 @@ def train_step():
         return
 
     batch = memory.sample(batch_size)
-    states, actions, rewards, next_states, dones = zip(*batch)
+    states, actions, rewards, next_states, terminated = zip(*batch)
 
     # Convert to NumPy arrays
     states = np.array(states, dtype=np.int32)
     next_states = np.array(next_states, dtype=np.int32)
     rewards = np.array(rewards, dtype=np.float32)
-    dones = np.array(dones, dtype=np.float32)
+    terminated = np.array(terminated, dtype=np.float32)
 
     # One-hot encode the states and next states
     states_one_hot = tf.one_hot(states, state_size)
     next_states_one_hot = tf.one_hot(next_states, state_size)
 
     # Compute target Q-values using the same model
-
-    # output of the dqn, list of target q values for each action given the input state
     target_qs = model(next_states_one_hot)
-
-    # maximum target q value
     max_next_qs = np.amax(target_qs, axis=1)
-
-    # Bellman equation
-    target_values = rewards + gamma * max_next_qs * (1 - dones)
+    target_values = rewards + gamma * max_next_qs * (1 - terminated)
 
     with tf.GradientTape() as tape:
         qs = model(states_one_hot)
@@ -79,44 +76,57 @@ def train_step():
 for episode in range(num_episodes):
     state = env.reset()[0]
     total_reward = 0
+    done = False
 
-    while True:
+    while not done:
         action = choose_action(state, epsilon)
         next_state, reward, terminated, truncated, _ = env.step(action)
-        done = terminated or truncated
-        memory.push((state, action, reward, next_state, done))
+
+        # Store transition in memory
+        memory.push((state, action, reward, next_state, terminated))
 
         state = next_state
-
         total_reward += reward
         train_step()
 
+        # End episode if terminated or truncated
+        done = terminated or truncated
+
         if done:
             epsilon = max(epsilon_min, epsilon * epsilon_decay)
+            rewards_history.append(total_reward)  # Record the total reward after each episode
             print(f"Episode {episode + 1}/{num_episodes}, Total Reward: {total_reward}, Epsilon: {epsilon:.4f}")
-            break
 
-num_episodes = 100
+# Plotting the rewards over episodes
+smooth_rewards = pd.DataFrame(rewards_history).rolling(20).mean()
+plt.plot(smooth_rewards)
+plt.xlabel('Episode')
+plt.ylabel('Total Reward')
+plt.title('DQN Training Performance Over Episodes')
+plt.savefig('learning_plot_less-decay.png')
+plt.show()
+
 nb_success = 0
+num_episodes = 1000
+
 for episode in range(num_episodes):
     state = env.reset()[0]
     total_reward = 0
     done = False
     steps = 0
+
     while not done:
         env.render()
         state_one_hot = tf.one_hot(state, state_size)
         q_values = model(np.array([state_one_hot], dtype=np.float32))
         action = np.argmax(q_values[0])
         state, reward, terminated, truncated, _ = env.step(action)
-        done = terminated or truncated
         total_reward += reward
-        if reward == 20:
-            nb_success += 1
         steps += 1
-
+        done = terminated or truncated
+        if terminated:
+            nb_success += 1
     print(f"Episode {episode + 1}: Completed in {steps} steps with total reward: {total_reward}")
 
 print(f"Success rate = {nb_success/num_episodes*100}%")
-
 env.close()

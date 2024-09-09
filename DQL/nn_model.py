@@ -1,5 +1,5 @@
 import tensorflow as tf
-from keras import layers
+from tensorflow.keras import layers
 
 class DQN(tf.keras.Model):
     def __init__(self, action_size):

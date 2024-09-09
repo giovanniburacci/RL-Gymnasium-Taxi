@@ -1,18 +1,25 @@
+import time
+
 import gymnasium as gym
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+from time import sleep
 
 environment = gym.make("Taxi-v3", render_mode="ansi")
 environment.reset()
-environment.render()
-qtable = np.zeros((environment.observation_space.n, environment.action_space.n))
+qtable = np.zeros(
+    (environment.observation_space.n,
+     environment.action_space.n)
+)
+
 
 episodes = 10000        # Total number of episodes
-alpha = 0.9            # Learning rate
+learning_rate = 0.3     # Learning rate
 gamma = 0.9            # Discount factor
 epsilon = 1
-epsilon_decay = 0.001
+epsilon_decay = 0.998
+epsilon_min = 0.01
 
 # Training
 total_reward = 0
@@ -20,7 +27,6 @@ rewards = []
 for _ in range(episodes):
     state = environment.reset()[0]
     done = False
-
     # By default, we consider our outcome to be a failure
 
     # Until the agent gets stuck in a hole or reaches the goal, keep training it
@@ -42,9 +48,11 @@ for _ in range(episodes):
         done = terminated or truncated
         # Update Q(s,a)
         qtable[state, action] = qtable[state, action] + \
-                                alpha * (reward + gamma * np.max(qtable[new_state]) - qtable[state, action])
+                                learning_rate * (
+                                        reward + gamma * np.max(qtable[new_state])
+                                                 - qtable[state, action])
         # update epsilon
-        epsilon = max(epsilon - epsilon_decay, 0)
+        epsilon = max(epsilon_min, epsilon * epsilon_decay)
 
         # Update our current state
         state = new_state
@@ -52,16 +60,16 @@ for _ in range(episodes):
     total_reward = 0
 
 # smoothening rewards
-smooth_rewards = pd.DataFrame(rewards).rolling(50).mean()
+smooth_rewards = pd.DataFrame(rewards).rolling(20).mean()
 
 # Plotting the rewards over episodes
 plt.plot(smooth_rewards)
 plt.xlabel('Episodes')
 plt.ylabel('Reward')
-plt.title('DQN Training Performance Over Episodes')
+plt.title('Tabular Q-Learning Training Performance Over Episodes')
 plt.savefig('learning_plot.png')
 plt.show()
-episodes = 100
+episodes = 10000
 nb_success = 0
 
 
@@ -77,12 +85,13 @@ for _ in range(episodes):
 
         # Implement this action and move the agent in the desired direction
         new_state, reward, terminated, truncated, _ = environment.step(action)
+        print(environment.render())
         done = terminated or truncated
         # Update our current state
         state = new_state
-        if reward == 20:
-            print(environment.render())
+        if terminated:
             nb_success += 1
 
 # Let's check our success rate!
 print(f"Success rate = {nb_success/episodes*100}%")
+environment.close()
