@@ -8,17 +8,21 @@ import pandas as pd
 
 # Hyperparameters
 env = gym.make("Taxi-v3", render_mode=None)
+env = gym.wrappers.TimeLimit(env, max_episode_steps=200)
+
 state_size = env.observation_space.n
 action_size = env.action_space.n
 
 learning_rate = 0.0005
-gamma = 0.9
+gamma = 0.99
 epsilon = 1.0
-epsilon_decay = 0.995
+epsilon_decay = 0.9998
 epsilon_min = 0.01
 batch_size = 64
-memory_capacity = 10000
-num_episodes = 1000
+memory_capacity = 100000
+num_episodes = 10000
+
+iteration = 0
 
 # Initialize DQN and memory
 model = DQN(action_size)
@@ -44,7 +48,6 @@ def choose_action(state, epsilon):
 def train_step():
     if len(memory) < batch_size:
         return
-
     batch = memory.sample(batch_size)
     states, actions, rewards, next_states, terminated = zip(*batch)
 
@@ -96,7 +99,7 @@ for episode in range(num_episodes):
     state = env.reset()[0]
     total_reward = 0
     done = False
-
+    iteration = 0
     while not done:
         action = choose_action(state, epsilon)
         next_state, reward, terminated, truncated, _ = env.step(action)
@@ -106,11 +109,13 @@ for episode in range(num_episodes):
 
         state = next_state
         total_reward += reward
-        train_step()
+
+        if iteration % batch_size == 0:
+            train_step()
 
         # End episode if terminated or truncated
         done = terminated or truncated
-
+        iteration += 1
         if done:
             epsilon = max(epsilon_min, epsilon * epsilon_decay)
             rewards_history.append(total_reward)  # Record the total reward after each episode
@@ -122,7 +127,7 @@ plt.plot(smooth_rewards)
 plt.xlabel('Episode')
 plt.ylabel('Total Reward')
 plt.title('DQL Training Performance Over Episodes')
-plt.savefig('learning_plot_less-decay.png')
+plt.savefig('learning_plot.png')
 plt.show()
 
 window_size = 100
