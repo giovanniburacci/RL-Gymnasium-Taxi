@@ -18,7 +18,7 @@ episodes = 10000        # Total number of episodes
 learning_rate = 0.3     # Learning rate
 gamma = 0.9            # Discount factor
 epsilon = 1
-epsilon_decay = 0.998
+epsilon_decay = 0.995
 epsilon_min = 0.01
 
 # Training
@@ -69,6 +69,17 @@ plt.ylabel('Reward')
 plt.title('Tabular Q-Learning Training Performance Over Episodes')
 plt.savefig('learning_plot.png')
 plt.show()
+
+window_size = 100
+avg_rewards = [np.mean(rewards[i:i+window_size]) for i in range(0, len(rewards), window_size)]
+reward_threshold = 6
+for i, avg_reward in enumerate(avg_rewards):
+    # set a threshold for arbitrarily measuring 'good performance'
+    if avg_reward > reward_threshold:
+        print(f"Convergence achieved at episode {i * window_size}")
+        break
+
+
 episodes = 10000
 nb_success = 0
 
@@ -85,13 +96,13 @@ for _ in range(episodes):
 
         # Implement this action and move the agent in the desired direction
         new_state, reward, terminated, truncated, _ = environment.step(action)
-        print(environment.render())
+        # print(environment.render())
         done = terminated or truncated
         # Update our current state
         state = new_state
         if terminated:
             nb_success += 1
 
-# Let's check our success rate!
+# let's check our success rate!
 print(f"Success rate = {nb_success/episodes*100}%")
 environment.close()

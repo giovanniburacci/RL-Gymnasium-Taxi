@@ -58,18 +58,37 @@ def train_step():
     states_one_hot = tf.one_hot(states, state_size)
     next_states_one_hot = tf.one_hot(next_states, state_size)
 
-    # Compute target Q-values using the same model
+    # Target q values are computed for the next state
     target_qs = model(next_states_one_hot)
+
+    # selecting best action according to target q values
     max_next_qs = np.amax(target_qs, axis=1)
+
+    # target q value computed using the Bellman equation
+    # (1 - terminated) is used to ignore future rewards
+    # from terminal (successfully) states
     target_values = rewards + gamma * max_next_qs * (1 - terminated)
 
+    # GradientTape is used to record operations on the model's weights
     with tf.GradientTape() as tape:
+
+        # computing q values for all actions on current state
         qs = model(states_one_hot)
+
+        # one hot encoding of actions
         action_masks = tf.one_hot(actions, action_size)
+
+        # multiply q values of each action times the actions that were really executed (one hot encoding)
+        # so that we only consider actions taken, and we sum the values and reduce it on the columns
         masked_qs = tf.reduce_sum(qs * action_masks, axis=1)
+
+        # compute loss function between the target values, computed through the Bellman equation
+        # and the q values returned by our neural network
         loss = loss_function(target_values, masked_qs)
 
+    # compute gradients of loss function
     grads = tape.gradient(loss, model.trainable_variables)
+    # update model weights with computer gradients (BACKPROPAGATION STEP)
     optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
 # Training loop
@@ -102,7 +121,7 @@ smooth_rewards = pd.DataFrame(rewards_history).rolling(20).mean()
 plt.plot(smooth_rewards)
 plt.xlabel('Episode')
 plt.ylabel('Total Reward')
-plt.title('DQN Training Performance Over Episodes')
+plt.title('DQL Training Performance Over Episodes')
 plt.savefig('learning_plot_less-decay.png')
 plt.show()
 
