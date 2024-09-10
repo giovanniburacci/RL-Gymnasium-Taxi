@@ -14,13 +14,13 @@ state_size = env.observation_space.n
 action_size = env.action_space.n
 
 learning_rate = 0.0005
-gamma = 0.99
+gamma = 0.9
 epsilon = 1.0
-epsilon_decay = 0.9998
+num_episodes = 20000
+epsilon_decay = 0.9994
 epsilon_min = 0.01
 batch_size = 64
-memory_capacity = 100000
-num_episodes = 10000
+memory_capacity = 1000000
 
 iteration = 0
 
@@ -48,6 +48,7 @@ def choose_action(state, epsilon):
 def train_step():
     if len(memory) < batch_size:
         return
+
     batch = memory.sample(batch_size)
     states, actions, rewards, next_states, terminated = zip(*batch)
 
@@ -110,8 +111,9 @@ for episode in range(num_episodes):
         state = next_state
         total_reward += reward
 
-        if iteration % batch_size == 0:
+        if iteration > 0 and iteration % batch_size == 0:
             train_step()
+            iteration = 0
 
         # End episode if terminated or truncated
         done = terminated or truncated
