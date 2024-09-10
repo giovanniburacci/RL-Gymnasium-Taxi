@@ -12,13 +12,13 @@ state_size = env.observation_space.n
 action_size = env.action_space.n
 
 learning_rate = 0.0005
-gamma = 0.99
+gamma = 0.9
 epsilon = 1.0
-epsilon_decay = 0.998
+epsilon_decay = 0.995
 epsilon_min = 0.01
 batch_size = 64
 memory_capacity = 10000
-num_episodes = 10000
+num_episodes = 1000
 
 # Initialize DQN and memory
 model = DQN(action_size)
@@ -125,8 +125,17 @@ plt.title('DQL Training Performance Over Episodes')
 plt.savefig('learning_plot_less-decay.png')
 plt.show()
 
+window_size = 100
+avg_rewards = [np.mean(rewards_history[i:i+window_size]) for i in range(0, len(rewards_history), window_size)]
+reward_threshold = 6
+for i, avg_reward in enumerate(avg_rewards):
+    # set a threshold for arbitrarily measuring 'good performance'
+    if avg_reward > reward_threshold:
+        print(f"Convergence achieved at episode {i * window_size}")
+        break
+
 nb_success = 0
-num_episodes = 1000
+num_episodes = 100
 
 for episode in range(num_episodes):
     state = env.reset()[0]
@@ -135,7 +144,6 @@ for episode in range(num_episodes):
     steps = 0
 
     while not done:
-        env.render()
         state_one_hot = tf.one_hot(state, state_size)
         q_values = model(np.array([state_one_hot], dtype=np.float32))
         action = np.argmax(q_values[0])
@@ -145,7 +153,6 @@ for episode in range(num_episodes):
         done = terminated or truncated
         if terminated:
             nb_success += 1
-    print(f"Episode {episode + 1}: Completed in {steps} steps with total reward: {total_reward}")
 
 print(f"Success rate = {nb_success/num_episodes*100}%")
 env.close()
