@@ -114,7 +114,10 @@ for episode in range(num_episodes):
     total_reward = 0
     done = False
     iteration = 0
-    use_target = True
+
+    # set to false to use only one network for training and target
+    # otherwise true if two networks are needed
+    use_target = False
 
     while not done:
         action = choose_action(state, epsilon)
