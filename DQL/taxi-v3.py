@@ -13,24 +13,33 @@ env = gym.wrappers.TimeLimit(env, max_episode_steps=200)
 state_size = env.observation_space.n
 action_size = env.action_space.n
 
-learning_rate = 0.0005
+learning_rate = 0.001
 gamma = 0.9
 epsilon = 1.0
-num_episodes = 20000
-epsilon_decay = 0.9994
+epsilon_decay = 0.9995
 epsilon_min = 0.01
 batch_size = 64
-memory_capacity = 1000000
+memory_capacity = 100000
+num_episodes = 10000
+
+# Update target network every 100 steps
+target_update_freq = 100
 
 iteration = 0
 
-# Initialize DQN and memory
+# Initialize training network
 model = DQN(action_size)
+
+# Initialize target network
+target_model = DQN(action_size)
+
+# Initialize memory
 memory = ReplayMemory(memory_capacity)
 
 # Build model by passing some input data (state_one_hot) through it
 dummy_state = tf.one_hot([0], state_size)  # Use a dummy state to initialize the model
 model(dummy_state)
+target_model(dummy_state)
 
 optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
 loss_function = tf.keras.losses.MeanSquaredError()
@@ -45,7 +54,7 @@ def choose_action(state, epsilon):
     q_values = model(np.array([state_one_hot], dtype=np.float32))
     return np.argmax(q_values[0])  # Choose action with the highest Q-value
 
-def train_step():
+def train_step(use_target):
     if len(memory) < batch_size:
         return
 
@@ -62,8 +71,12 @@ def train_step():
     states_one_hot = tf.one_hot(states, state_size)
     next_states_one_hot = tf.one_hot(next_states, state_size)
 
-    # Target q values are computed for the next state
-    target_qs = model(next_states_one_hot)
+    if use_target:
+        # Target q values are computed using the target network for the next state
+        target_qs = target_model(next_states_one_hot)
+    else:
+        # Target q values are computed for the next state
+        target_qs = model(next_states_one_hot)
 
     # selecting best action according to target q values
     max_next_qs = np.amax(target_qs, axis=1)
@@ -101,6 +114,8 @@ for episode in range(num_episodes):
     total_reward = 0
     done = False
     iteration = 0
+    use_target = True
+
     while not done:
         action = choose_action(state, epsilon)
         next_state, reward, terminated, truncated, _ = env.step(action)
@@ -112,8 +127,11 @@ for episode in range(num_episodes):
         total_reward += reward
 
         if iteration > 0 and iteration % batch_size == 0:
-            train_step()
+            train_step(use_target)
             iteration = 0
+
+        if use_target and iteration % target_update_freq == 0:
+            target_model.set_weights(model.get_weights())
 
         # End episode if terminated or truncated
         done = terminated or truncated
@@ -129,7 +147,7 @@ plt.plot(smooth_rewards)
 plt.xlabel('Episode')
 plt.ylabel('Total Reward')
 plt.title('DQL Training Performance Over Episodes')
-plt.savefig('learning_plot.png')
+plt.savefig('learning_plot-merged.png')
 plt.show()
 
 window_size = 100
